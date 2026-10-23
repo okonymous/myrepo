@@ -1,0 +1,31 @@
+name: Insight Stream CI
+on:
+  push:
+    branches: [insight-stream-pro]
+    paths:
+      - 'insight-stream/**'
+      - '.github/workflows/insight-stream-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: insight-stream
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: insight-stream/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Build (no deploy)
+        run: npm run build

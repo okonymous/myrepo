@@ -4,9 +4,8 @@ export interface TenantContext { org: Organization; userId: string; db: TenantCl
 export type Operation = 'feed' | 'brief' | 'trend' | 'instagram' | 'automatio';
 export async function authorizeTenant(supabase: SupabaseClient, userId: string, orgId?: string, readOnly = false): Promise<TenantContext> {
  const db = supabase as unknown as TenantClient;
- let query = db.from('organization_memberships').select('org_id,role').eq('user_id',userId).order('created_at').limit(1);
- if (orgId) query = query.eq('org_id',orgId);
- const {data: member,error} = await query.maybeSingle();
+ const query = db.from('organization_memberships').select('org_id,role').eq('user_id',userId).order('created_at').limit(1);
+ const {data: member,error} = await (orgId ? query.eq('org_id',orgId) : query).maybeSingle();
  if (error) throw new Error('Workspace security is unavailable. No paid requests were started.');
  if (!member || (!readOnly && member.role === 'viewer')) throw new Error('Workspace permission denied.');
  const {data: org,error: orgError} = await db.from('organizations').select('*').eq('id',member.org_id).single();
@@ -36,5 +35,5 @@ export async function settleRequest(requestId: string, credits: number | null, s
 export async function withTenantRequest<T>(tenant: TenantContext, operation: Operation, run: () => Promise<T>): Promise<T> {
  const id = await reserveRequest(tenant,operation);
  try { const result = await run(); await settleRequest(id,0,'success'); return result; }
- catch { await settleRequest(id,0,'failed'); throw new Error('Monitoring request failed. Please retry later.'); }
+ catch (error) { await settleRequest(id,0,'failed'); if (error instanceof Error && error.message === 'Credit accounting unavailable; reservation retained.') throw error; throw new Error('Monitoring request failed. Please retry later.'); }
 }
